@@ -1,0 +1,76 @@
+# ===== Core Web Framework =====
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# ===== Git & File Versioning (필수 추가) =====
+GitPython>=3.1.40               # 파이썬에서 Git 명령어를 제어하기 위한 핵심 라이브러리
+
+# ===== Search Engine (필수 추가) =====
+elasticsearch>=8.11.0           # Elasticsearch 서버와 통신하기 위한 공식 클라이언트
+
+# ==== Prefect ====
+prefect
+
+# ==== 솔라스 Client =======
+solace-pubsubplus==1.7.0
+# ===== HTTP Client =====
+httpx>=0.25.2                    # Async HTTP client
+aiohttp>=3.9.1
+requests==2.29.0                # Downgraded for pyrebase4 compatibility
+
+
+# ===== Database & ORM =====
+sqlalchemy>=2.0.23
+alembic>=1.12.1
+psycopg2-binary>=2.9.9          # PostgreSQL adapter
+pymongo>=4.6.0                   # MongoDB support (AI data)
+
+
+# ===== Additional PostgreSQL Libraries (No conflicts) =====
+asyncpg==0.29.0                 # Async PostgreSQL driver (high performance)
+psycopg==3.1.13                 # Next generation psycopg (psycopg3)
+psycopg-binary==3.1.13          # psycopg3 binary version
+sqlalchemy-utils==0.41.1        # SQLAlchemy utilities (PostgreSQL specific features)
+
+
+
+# ===== Configuration & Environment =====
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+pydantic-settings>=2.0.0
+
+# ===== Task Queue & Background Jobs =====
+celery>=5.3.4
+flower>=2.0.1                    # Celery monitoring
+
+# ===== Logging & Monitoring =====
+structlog>=23.2.0
+prometheus-client>=0.19.0
+sentry-sdk[fastapi]>=1.39.2
+
+# ===== API Documentation =====
+markdown>=3.5.1
+
+# ===== Development & Testing =====
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+pytest-cov>=4.1.0
+factory-boy>=3.3.0               # Test data factory
+
+# ===== Code Quality =====
+black>=23.11.0                   # Code formatter
+isort>=5.12.0                    # Import sorting
+flake8>=6.1.0                    # Linter
+mypy>=1.7.1                      # Type checker
+pre-commit>=3.6.0                # Git hooks
+
+# ===== Utilities =====
+click>=8.1.7                     # CLI tools
+rich>=13.7.0                     # Terminal output improvement
+python-slugify>=8.0.1            # URL slug generation
+email-validator>=2.1.0
+
+# ===== Production Deployment =====
+gunicorn>=21.2.0                 # WSGI server
+supervisor>=4.2.5                # Process management
