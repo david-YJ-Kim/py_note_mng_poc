@@ -3,11 +3,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from watchfiles import awatch
 
 from app.database.note_mng.connection import init_models, get_db
 from app.database.note_mng.model.note_model import NoteMetadata
 from app.service.git_manage_service.git_poc import GitService
-from app.service.note_mng.note_mng_biz_service import NoteService
+from app.service.note_mng.note_mng_biz_service import NoteService, get_note_service
 
 git_service = GitService()
 
@@ -44,15 +45,13 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/notes/save")
-async def save_note(request: NoteSaveRequest, db: AsyncSession = Depends(get_db)):
+async def save_note(request: NoteSaveRequest, service: NoteService = Depends(get_note_service)):
 
     try:
 
-        # 서비스 인스턴스 생성 (DB 세션 주입)
-        note_service = NoteService(db)
 
         # 핵심 로직 실행
-        result = await note_service.save_or_update_note(
+        result = await service.save_or_update_note(
             title=request.title,
             content=request.content,
             user_name=request.user_name,
@@ -66,6 +65,17 @@ async def save_note(request: NoteSaveRequest, db: AsyncSession = Depends(get_db)
         # 에러 발생 시 get_db에서 자동으로 rollback 처리 됨
         print(f"❌ Error in save_note: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/notes")
+async def list_notes(service: NoteService = Depends(get_note_service)):
+    return await service.get_all_notes()
+
+@app.get("/notes/{title}/history")
+async def get_note_history(title: str, service: NoteService = Depends(get_note_service)):
+    detail = await service.get_note_detail(title)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return detail
 
 if __name__ == '__main__':
     import uvicorn

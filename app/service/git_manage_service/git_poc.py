@@ -22,6 +22,25 @@ class GitService:
         else:
             self.repo = Repo(self.repo_path)
 
+    def get_file_history(self, file_path:str):
+        """ 특정 파일의 커밋 히스토리를 반환 """
+        try:
+            # git log를 사용하여 커밋 해시, 작성자, 날짜, 메시지를 가져옴
+            commits = self.repo.iter_commits(paths=file_path)
+            history = []
+            for c in commits:
+                history.append({
+                    "hash": c.hexsha,
+                    "author": c.author.name,
+                    "date": c.authored_datetime.isoformat(),
+                    "message": c.message.strip(),
+                })
+            return history
+        except Exception as e:
+            print(f"Git history error: {e}")
+            return []
+
+
     def write_and_commit(self, file_name, content, author_name, message):
         """ 신규 노트 생성 및 커밋 """
 
@@ -111,6 +130,28 @@ class GitService:
             for p in paths.values():
                 if os.path.exists(p):
                     os.remove(p)
+
+    def get_file_diff(self, commit_hash: str, file_path: str) -> str:
+        """특정 커밋의 변경 사항(Diff)을 안정적으로 가져옵니다."""
+        try:
+            # 1. 해당 커밋의 부모(이전 커밋) 해시를 가져옴
+            # ^1은 바로 이전 커밋을 의미함
+            try:
+                # git show를 사용하여 특정 파일의 patch만 추출
+                # --pretty=format:은 커밋 메시지 출력을 없애고 순수 diff만 가져오기 위함
+                diff_output = self.repo.git.show(
+                    "--pretty=format:",
+                    commit_hash,
+                    "--",
+                    file_path
+                )
+                return diff_output.strip() if diff_output else "변경 사항이 없습니다."
+            except Exception as git_err:
+                # 첫 번째 커밋 등 부모가 없는 경우 처리
+                return self.repo.git.show(commit_hash, "--", file_path)
+
+        except Exception as e:
+            return f"Diff 추출 실패: {str(e)}"
 
 
 
