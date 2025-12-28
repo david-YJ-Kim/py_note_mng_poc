@@ -1,0 +1,50 @@
+# 애플리케이션 설정 파일 (Local 환경)
+# 기본 설정 파일 - ENV가 없거나 local일 때 사용
+
+# 서버 설정
+server:
+  host: "127.0.0.1"
+  port: 8000
+  debug: true
+  reload: true
+  title: "Simple Web Server w/ FastAPI"
+  description: "Simple Web Server w/ FastAPI"
+  version: "0.0.1"
+
+# CORS 설정
+cors:
+  allow_origins:
+    - "*"
+  allow_credentials: true
+  allow_methods:
+    - "*"
+  allow_headers:
+    - "*"
+
+# 로깅 설정
+logging:
+  level: "DEBUG"  # Local에서는 DEBUG 레벨
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/app.log"
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+
+# 데이터베이스 설정
+database:
+  host: "ep-fancy-frost-adv94vxa-pooler.c-2.us-east-1.aws.neon.tech"  # 호스트명만 (경로/쿼리 제거)
+  port: 5432
+  name: "neondb"          # 데이터베이스 이름 (DB 이름)
+  user: "david"           # 계정 이름 (사용자 이름)
+  ssl_mode: "require"     # SSL 모드 (Neon DB는 SSL 필수)
+  # password는 보안상 .env 파일의 DB_PASSWORD 환경 변수에서만 가져옵니다
+  pool_size: 5
+  max_overflow: 10
+  echo_sql: true          # SQL 쿼리 로그 출력 (true: 쿼리 출력, false: 출력 안함)
+
+# API 설정
+api:
+  timeout: 30
+  retry_count: 3
+  rate_limit: 100  # requests per minute
+
+

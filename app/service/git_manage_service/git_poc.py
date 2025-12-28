@@ -3,7 +3,6 @@ import subprocess
 from pathlib import Path
 
 from git import Repo, Actor
-from prefect.events.cli.automations import resume
 
 
 class GitService:
@@ -11,7 +10,7 @@ class GitService:
         if repo_path is None:
             # 현재 테스트 폴더는 Root 폴더에 위치함
             base_dir = Path(__file__).resolve().parent.parent.parent.parent
-            self.repo_path = str(base_dir / "data")
+            self.repo_path = str(base_dir / "data/note")
             print(f"base_dir: {base_dir}, repo_path: {self.repo_path}")
         else:
             self.repo_path = repo_path
