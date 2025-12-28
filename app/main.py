@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.note_mng.connection import init_models, get_db
 from app.database.note_mng.model.note_model import NoteMetadata
 from app.service.git_manage_service.git_poc import GitService
+from app.service.note_mng.note_mng_biz_service import NoteService
 
 git_service = GitService()
 
@@ -44,31 +45,26 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/notes/save")
 async def save_note(request: NoteSaveRequest, db: AsyncSession = Depends(get_db)):
-    # 여기서 Git 연동 로직과 DB 저장을 함께 수행
-
-    file_name = f"{request.title}.md"
 
     try:
-        # 1. Git에 파일 쓰고 커밋 (해시 반환)
-        new_hash = git_service.write_and_commit(
-            file_name, request.content, request.user_name, f"Save {request.title}"
-        )
-        
-        # 2. DB에 메터 데이터 저장
-        new_note = NoteMetadata(
+
+        # 서비스 인스턴스 생성 (DB 세션 주입)
+        note_service = NoteService(db)
+
+        # 핵심 로직 실행
+        result = await note_service.save_or_update_note(
             title=request.title,
-            file_path=file_name,
-            last_commit_hash=new_hash,
+            content=request.content,
+            user_name=request.user_name,
         )
-        db.add(new_note)
-        # 여기서 await db_commit()을 명시적으로 안해도 get_db의 yield 이후에 실행 됨
+
         return {
             "status": "success",
-            "file": file_name,
-            "commit_hash": new_hash,
+            **result,
         }
     except Exception as e:
         # 에러 발생 시 get_db에서 자동으로 rollback 처리 됨
+        print(f"❌ Error in save_note: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':
