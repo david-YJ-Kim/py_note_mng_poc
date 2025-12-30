@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 git_service = GitService()
 
+
 # Swagger에서 입력받을 데이터 구조 정의
 # class NoteSaveRequest(BaseModel):
 #     title: str
@@ -46,10 +47,11 @@ async def lifespan(app: FastAPI):
 
     print("✅ 정리 작업 완료")
 
+
 app = FastAPI(lifespan=lifespan)
 app.include_router(note_service_controller)
 
-
 if __name__ == '__main__':
     import uvicorn
+
     uvicorn.run("app.main:app", host="127.0.0.1", port=9900, reload=True)

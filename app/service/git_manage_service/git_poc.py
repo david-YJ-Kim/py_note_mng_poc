@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -152,6 +153,17 @@ class GitService:
 
         except Exception as e:
             return f"Diff 추출 실패: {str(e)}"
+
+    def read_file_content(self, file_name: str) -> str:
+        """ 현재 워킹 디렉토리의 파일 내용을 읽어옵니다. """
+        import os
+        file_path = os.path.join(self.repo.working_dir, file_name)
+        if not os.path.exists(file_path):
+            logging.warn(f"file is not exist. path:{file_path}")
+            return ""
+
+        with open(file_path, "r", encoding="UTF-8") as f:
+            return f.read()
 
 
 
