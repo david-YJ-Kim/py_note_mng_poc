@@ -1,6 +1,6 @@
+# note_mng_biz_service.py
+
 import asyncio
-import logging
-from cmath import acos
 
 from fastapi import Depends
 from sqlalchemy import select, func
@@ -10,6 +10,7 @@ from app.database.note_mng.connection import get_db
 from app.database.note_mng.model.note_model import NoteMetadata
 from app.exception.NoteConflictError import NoteConflictError
 from app.service.git_manage_service.git_poc import GitService
+from app.service.lang_analyzer.search_manager import NoteSearchManager
 from app.spec.biz.NoteConflictDetail import NoteConflictDetail
 
 
@@ -17,6 +18,7 @@ class NoteService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.git_service = GitService()
+        self.search_manager = NoteSearchManager()
 
     async def get_notes_with_pagination(self, keyword: str | None = None, page: int = 1, size: int = 20):
 
@@ -95,6 +97,38 @@ class NoteService:
         resource = await self.db.execute(query)
         return resource.scalars().all()
 
+    async def get_notes_with_complex_search(self, keyword: str, page: int = 1, size: int = 20):
+        """
+        제목(DB)와 본문 (Whoosh)을 모두 아우르는 복합 검색
+        :param keyword:
+        :param page:
+        :param size:
+        :return:
+        """
+
+        skip = (page - 1) * size
+
+        # 1. Whoosh에서 본문 검색 결과 (제목 리스트) 가져오기
+        content_matched_titles = []
+        if keyword:
+            content_matched_titles = self.search_manager.search(keyword, limit=100)
+
+        print(f"keyword:{keyword} content_matched_titles: {content_matched_titles}")
+
+        # 2. DB에서 검색 (제목 검색 + Whoosh에서 넘어온 제목들 포함)
+        query = select(NoteMetadata)
+        search_term = f"%{keyword}%"
+        filter_stmt = (NoteMetadata.title.like(search_term) | NoteMetadata.title.in_(content_matched_titles))
+        query = query.where(filter_stmt)
+
+        result = await self.db.execute(query.order_by(NoteMetadata.updated_at.desc()).offset(skip).limit(size))
+        items = result.scalars().all()
+
+        count_query = select(func.count()).select_from(NoteMetadata)
+        total_count_result = await self.db.execute(count_query)
+
+        return items, total_count_result.scalar()
+
     async def get_note_detail(self, title: str):
         """ 특정 노트의 DB 정보와 Git 히스토리를 함께 조회 """
         # 1. DB 메터데이터 조회
@@ -123,6 +157,30 @@ class NoteService:
             "metadata": note_meta,
             "git_history": history_with_diff,
         }
+
+    def sync_all_files_to_index(self):
+        """
+        서버 시작 시 호출하여 기존 모든 파일을 Whoosh에 색인
+        :return:
+        """
+
+        print(f"[System] 기존 파일 검색 색인 시작...")
+        md_files = list(self.git_service.repo_path.glob("**/*.md"))
+
+        # Whoosh writer 오픈
+        writer = self.search_manager.ix.writer()
+        for file_path in md_files:
+            title = file_path.stem
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    # 기존 데이터가 있으면 덮어쓰기(Update)
+                    writer.update_document(title=title, content=content)
+            except Exception as e:
+                print(f"[Error] 파일 읽기 실패 ({title}): {e}")
+
+        writer.commit()
+        print(f"[System] 총 {len(md_files)} 개의 문서 색인 완료")
 
     async def _get_diff_async(self, item: dict, file_path: str):
         """ 개별 커밋의 diff를 비동기적으로 가져오는 헬퍼 메서드 """

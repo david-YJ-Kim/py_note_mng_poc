@@ -74,3 +74,9 @@ email-validator>=2.1.0
 # ===== Production Deployment =====
 gunicorn>=21.2.0                 # WSGI server
 supervisor>=4.2.5                # Process management
+
+# ===== Search Engine (Whoosh 기반 경량 엔진) =====
+Whoosh==2.7.4                 # 순수 파이썬 전문 검색 엔진 라이브러리
+
+# ===== Korean NLP (한글 형태소 분석) =====
+PyKomoran==0.1.6.post1        # 한글 명사 추출 및 복합 명사 분리를 위한 분석기

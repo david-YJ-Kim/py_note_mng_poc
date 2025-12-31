@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from watchfiles import awatch
 
 from app.controller.note_service_controller import note_service_controller
-from app.database.note_mng.connection import init_models, get_db
+from app.database.note_mng.connection import init_models, get_db, AsyncSessionLocal
 from app.database.note_mng.model.note_model import NoteMetadata
 from app.service.git_manage_service.git_poc import GitService
 from app.service.note_mng.note_mng_biz_service import NoteService, get_note_service
@@ -30,8 +30,16 @@ git_service = GitService()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 서버 시작 시 실행 (startup)
+
+    print(f"start sync Index")
+    async with AsyncSessionLocal() as session:
+        service = NoteService(session)
+        # 별도 쓰레드나 동기 방식으로 실행
+        service.sync_all_files_to_index()
+
     await init_models()
     print("✅ PoC용 SQLite 테이블 생성 완료")
+
     yield
     # ========== Shutdown (서버 종료 시) ==========
     print("🛑 서버 종료 중...")

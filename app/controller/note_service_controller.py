@@ -1,4 +1,4 @@
-from fastapi import HTTPException, APIRouter, Depends, status
+from fastapi import HTTPException, APIRouter, Depends, status, BackgroundTasks
 
 from app.exception.NoteConflictError import NoteConflictError
 from app.service.note_mng.note_mng_biz_service import NoteService, get_note_service
@@ -10,7 +10,8 @@ router = APIRouter(prefix="/notes", tags=["note"])
 @router.get("")
 async def get_notes(keyword: str = None, page: int = 1, size: int = 20,
                     service: NoteService = Depends(get_note_service)):
-    items, total_count = await service.get_notes_with_pagination(keyword, page, size)
+    items, total_count = await service.get_notes_with_complex_search(keyword, page, size)
+    # items, total_count = await service.get_notes_with_pagination(keyword, page, size)
 
     # 전체 페이지 수 계산
     total_pages = (total_count + size - 1) // size
@@ -27,7 +28,7 @@ async def get_notes(keyword: str = None, page: int = 1, size: int = 20,
 
     return {
         "status": "success",
-        "metdata": {
+        "metadata": {
             "total_count": total_count,
             "total_pages": total_pages,
             "current_page": page,
@@ -40,7 +41,8 @@ async def get_notes(keyword: str = None, page: int = 1, size: int = 20,
 
 
 @router.post("/save")
-async def save_note(request: NoteSaveRequest, service: NoteService = Depends(get_note_service)):
+async def save_note(request: NoteSaveRequest, background_tasks: BackgroundTasks,
+                    service: NoteService = Depends(get_note_service)):
     try:
         # 핵심 로직 실행
         result = await service.save_or_update_note(
@@ -48,6 +50,13 @@ async def save_note(request: NoteSaveRequest, service: NoteService = Depends(get
             content=request.content,
             user_name=request.user_name,
             last_hash=request.last_hash,
+        )
+
+        # 2. 무거운 색인 작업은 백그라운드에서 실행
+        background_tasks.add_task(
+            service.search_manager.update_index,
+            request.title,
+            request.content,
         )
 
         return {

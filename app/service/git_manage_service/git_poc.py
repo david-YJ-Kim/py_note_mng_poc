@@ -11,8 +11,8 @@ class GitService:
         if repo_path is None:
             # 현재 테스트 폴더는 Root 폴더에 위치함
             base_dir = Path(__file__).resolve().parent.parent.parent.parent
-            self.repo_path = str(base_dir / "data/note")
-            print(f"base_dir: {base_dir}, repo_path: {self.repo_path}")
+            self.repo_path = base_dir / "data" / "note"
+            print(f"base_dir: {base_dir}, repo_path: {str(self.repo_path)}")
         else:
             self.repo_path = repo_path
 
@@ -23,7 +23,7 @@ class GitService:
         else:
             self.repo = Repo(self.repo_path)
 
-    def get_file_history(self, file_path:str):
+    def get_file_history(self, file_path: str):
         """ 특정 파일의 커밋 히스토리를 반환 """
         try:
             # git log를 사용하여 커밋 해시, 작성자, 날짜, 메시지를 가져옴
@@ -40,7 +40,6 @@ class GitService:
         except Exception as e:
             print(f"Git history error: {e}")
             return []
-
 
     def write_and_commit(self, file_name, content, author_name, message):
         """ 신규 노트 생성 및 커밋 """
@@ -100,7 +99,7 @@ class GitService:
         """
 
         # 임시 파일 생성 (Git merge-file은 파일 단위로 작동)
-        paths= {
+        paths = {
             "base": os.path.join(self.repo_path, "tmp_base.txt"),
             "local": os.path.join(self.repo_path, "tmp_local.txt"),
             "remote": os.path.join(self.repo_path, "tmp_remote.txt")
@@ -166,8 +165,6 @@ class GitService:
             return f.read()
 
 
-
-
 if __name__ == '__main__':
     poc = GitService()
 
@@ -196,7 +193,6 @@ if __name__ == '__main__':
         print("✅ 어라? 자동 병합되었습니다.")
         print(f"결과:\n{result_txt}")
     """ 충돌 테스트 """
-
 
     """ Merge 테스트 """
     # # [시나리오]
@@ -232,5 +228,3 @@ if __name__ == '__main__':
     # for h in history:
     #     print(f"{h['date']} {h['author']}: {h['hash']} {h['diff']} {h['date']}")
     """ 기본 저장 테스트 """
-
-
