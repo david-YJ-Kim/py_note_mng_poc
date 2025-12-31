@@ -7,6 +7,38 @@ from app.spec.endpoint.NoteServiceIvo import NoteSaveRequest
 router = APIRouter(prefix="/notes", tags=["note"])
 
 
+@router.get("")
+async def get_notes(keyword: str = None, page: int = 1, size: int = 20,
+                    service: NoteService = Depends(get_note_service)):
+    items, total_count = await service.get_notes_with_pagination(keyword, page, size)
+
+    # 전체 페이지 수 계산
+    total_pages = (total_count + size - 1) // size
+
+    # 다음/이전 페이지 URL 생성
+    base_url = "/notes"
+    next_page = f"{base_url}?page={page + 1}&size={size}" if page < total_pages else None
+    prev_page = f"{base_url}?page={page - 1}&size={size}" if page > 1 else None
+
+    # 검색어가 있었다면, URL에도 붙여줌
+    if keyword:
+        if next_page: next_page += f"&keyword={keyword}"
+        if prev_page: prev_page += f"&keyword={keyword}"
+
+    return {
+        "status": "success",
+        "metdata": {
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "current_page": page,
+            "size": size,
+            "next_link": next_page,
+            "prev_link": prev_page,
+        },
+        "items": items,
+    }
+
+
 @router.post("/save")
 async def save_note(request: NoteSaveRequest, service: NoteService = Depends(get_note_service)):
     try:
@@ -36,11 +68,6 @@ async def save_note(request: NoteSaveRequest, service: NoteService = Depends(get
     except Exception as e:
         print(f"❌ Error in save_note: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-@router.get("")
-async def list_notes(service: NoteService = Depends(get_note_service)):
-    return await service.get_all_notes()
 
 
 @router.get("/{title}/history")

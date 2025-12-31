@@ -3,7 +3,7 @@ import logging
 from cmath import acos
 
 from fastapi import Depends
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.note_mng.connection import get_db
@@ -17,6 +17,33 @@ class NoteService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.git_service = GitService()
+
+    async def get_notes_with_pagination(self, keyword: str | None = None, page: int = 1, size: int = 20):
+
+        skip = (page - 1) * size
+
+        # 1. 기본 쿼리 생성
+        query = select(NoteMetadata)
+        count_query = select(func.count()).select_from(NoteMetadata)
+
+        # 2. 검색 조건 추가 (제목 기반 검색)
+        if keyword:
+            search_term = f"%{keyword}%"
+            filter_stmt = NoteMetadata.title.like(search_term)
+            query = query.where(filter_stmt)
+            count_query = count_query.where(filter_stmt)
+
+        # 3. 정렬 및 페이징 적용
+        query = query.order_by(NoteMetadata.updated_at.desc()).offset(skip).limit(size)
+
+        # 4. 실행
+        total_count_result = await self.db.execute(count_query)
+        total_count = total_count_result.scalar()
+
+        result = await self.db.execute(query)
+        items = result.scalars().all()
+
+        return items, total_count
 
     async def save_or_update_note(self, title: str, content: str, user_name: str, last_hash: str = None):
         """
