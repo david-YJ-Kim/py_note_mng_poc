@@ -1,6 +1,8 @@
 # note_mng_biz_service.py
 
 import asyncio
+from pathlib import Path
+from typing import List, Optional
 
 from fastapi import Depends
 from sqlalchemy import select, func
@@ -12,6 +14,7 @@ from app.exception.NoteConflictError import NoteConflictError
 from app.service.git_manage_service.git_poc import GitService
 from app.service.lang_analyzer.search_manager import NoteSearchManager
 from app.spec.biz.NoteConflictDetail import NoteConflictDetail
+from app.spec.endpoint.note_service_file_tree_data_response_ivo import NoteServiceFileTreeDataResponseIVO, TreeType
 
 
 class NoteService:
@@ -19,6 +22,9 @@ class NoteService:
         self.db = db
         self.git_service = GitService()
         self.search_manager = NoteSearchManager()
+
+    async def get_folder_tree_data(self) -> List[NoteServiceFileTreeDataResponseIVO]:
+        return self._build_tree_ivo(self.git_service.repo_path)
 
     async def get_notes_with_pagination(self, keyword: str | None = None, page: int = 1, size: int = 20):
 
@@ -217,6 +223,54 @@ class NoteService:
 
             # 상세 정보를 예외 객체에 담아 던짐
             raise NoteConflictError(conflict_data=conflict_info)
+
+    def _build_tree_ivo(self, current_path: Path, parent_id: Optional[str] = None) -> List[
+        NoteServiceFileTreeDataResponseIVO]:
+
+        tree = []
+        # 1. 항목 리스트업 및 정렬 (폴더 우선 -> 이름순)
+        items = sorted(list(current_path.iterdir()), key=lambda x: (x.is_file(), x.name))
+
+        for index, item in enumerate(items):
+            if item.name.startswith(".") or item.name == "__pycache__":
+                continue
+
+            # 2. 필수 속성 계산
+            rel_path = item.relative_to(self.git_service.repo_path)
+            item_id = str(rel_path).replace("\\", "/").replace(" ", "-").lower()
+            display_path = str(rel_path).replace("\\", "/")
+
+            if item.is_dir():
+                # 💡 재귀 호출을 먼저 수행하여 하위 트리 리스트를 얻습니다.
+                child_nodes = self._build_tree_ivo(item, parent_id=item_id)
+
+                # 💡 객체 생성 시 children 인자에 위에서 얻은 리스트를 넣습니다.
+                data_ivo = NoteServiceFileTreeDataResponseIVO(
+                    id=item_id,
+                    name=item.name,
+                    type=TreeType.FOLDER,
+                    parentId=parent_id,
+                    path=display_path,
+                    children=child_nodes,  # 여기서 재귀 결과가 들어갑니다.
+                    order=index,
+                    expanded=None
+                )
+            else:
+                # 파일(Note)인 경우 children은 None 또는 빈 리스트
+                data_ivo = NoteServiceFileTreeDataResponseIVO(
+                    id=item_id,
+                    name=item.stem,
+                    type=TreeType.NOTE,
+                    parentId=parent_id,
+                    path=display_path,
+                    order=index,
+                    expanded=None,
+                    children=None
+                )
+
+            tree.append(data_ivo)
+
+        return tree
 
 
 ## 의존성 주입을 위한 함수 만들기

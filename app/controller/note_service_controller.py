@@ -2,7 +2,8 @@ from fastapi import HTTPException, APIRouter, Depends, status, BackgroundTasks
 
 from app.exception.NoteConflictError import NoteConflictError
 from app.service.note_mng.note_mng_biz_service import NoteService, get_note_service
-from app.spec.endpoint.NoteServiceIvo import NoteSaveRequest
+from app.spec.endpoint.note_service_file_response_ivo import NoteSaveRequest
+from app.spec.endpoint.note_service_file_tree_response_ivo import NoteServiceFileTreeResponseIVO
 
 router = APIRouter(prefix="/notes", tags=["note"])
 
@@ -38,6 +39,23 @@ async def get_notes(keyword: str = None, page: int = 1, size: int = 20,
         },
         "items": items,
     }
+
+
+@router.get("/folder-tree")
+async def get_folder_tree(service: NoteService = Depends(get_note_service)):
+    try:
+        tree_data = await service.get_folder_tree_data()
+        return NoteServiceFileTreeResponseIVO(
+            success=True,
+            data=tree_data,
+            message="Folder tree retrieved successfully",
+        )
+    except Exception as e:
+        return NoteServiceFileTreeResponseIVO(
+            success=False,
+            data=[],
+            message=f"Error: {str(e)}",
+        )
 
 
 @router.post("/save")

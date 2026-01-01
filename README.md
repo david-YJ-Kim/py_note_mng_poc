@@ -1,26 +1,83 @@
-네, 에디터에서 복사(Copy)하여 바로 .md 파일에 붙여넣기(Paste)했을 때, 깨지지 않고 완벽하게 렌더링되도록 표준 마크다운 문법으로 설계안을 다시 정리해 드립니다.문단 사이의 공백과 코드 블록(```) 처리를 최적화했으므로 그대로 사용하시면 됩니다.📑 Private Team Note Service 설계서 (v1.0)본 문서는 Git 기반의 이력 관리와 Elasticsearch의 검색 성능을 결합한 사내 전용 업무 관리 서비스의 아키텍처를 정의합니다.1. 시스템 아키텍처 개요본 서비스는 데이터의 신뢰성(Git), 탐색 효율(ES), **운영 안정성(Prefect)**을 3대 핵심 가치로 삼습니다.API Layer: FastAPI (비동기 처리 및 현대적 API 제공)Database: SQLite (PoC 단계) → PostgreSQL/Oracle (운영 단계)Version Control: Git (파일 기반 원본 저장 및 수정 이력 관리)Search Engine: Elasticsearch (전문 검색 및 형태소 분석)Task Runner: Prefect (후처리 작업 파이프라인 관리)2. 데이터 저장 구조2.1 저장소 분할 전략데이터 종류저장소관리 방식노트 본문파일 시스템.md 파일 형식 (UTF-8)변경 이력Git커밋(Commit) 및 브랜치(Branch) 관리메타데이터DB (SQLite)제목, 작성자, 태그, 최신 커밋 해시검색 인덱스Elasticsearch본문 텍스트 토큰화 및 색인2.2 디렉토리 구조Plaintext/data/notes/
-├── .git/               # Git Repository 정보
-├── team_a/             # 팀별 디렉토리
-│   ├── note_101.md     # 실제 노트 파일
-│   └── note_102.md
-└── attachments/        # 첨부파일 (UUID 기반 관리)
-3. 핵심 로직: 저장 및 동시성 제어사용자의 저장 요청 시 데이터 유실을 방지하기 위해 **낙관적 잠금(Optimistic Locking)**과 Git Merge 메커니즘을 사용합니다.3.1 저장 프로세스조회: 사용자가 편집 시점의 base_commit_hash를 함께 전송.비교: DB의 최신 last_commit_hash와 사용자의 base_commit_hash 비교.병합:두 해시가 다를 경우 git merge-file 실행.자동 병합 성공: 병합된 내용으로 커밋 진행.충돌 발생: 충돌 표시(<<<<)가 포함된 내용을 임시 브랜치에 저장 후 유저에게 에러 응답.확정: 최종 결과물을 main 브랜치에 커밋하고 DB 갱신.4. 백그라운드 태스크 (Prefect)사용자 응답 속도를 극대화하기 위해, 저장이 완료된 후의 후속 작업은 Prefect가 비동기로 처리합니다.Flow 명칭: post_save_indexing_flow주요 Task:git_push_to_remote: (필요 시) 내부 백업 레포지토리로 푸시.update_es_index: Elasticsearch에 변경된 본문 색인 업데이트.notify_team: 웹소켓 등을 통해 팀원들에게 업데이트 알림 전송.5. 데이터베이스 스키마 (SQLite 기준)SQL-- 노트 메타데이터 테이블
-CREATE TABLE notes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    file_path TEXT UNIQUE NOT NULL,
-    last_commit_hash TEXT,        -- Git 이력 추적용 (SHA-1)
-    owner_id INTEGER,
-    team_id INTEGER,
-    is_conflicting INTEGER DEFAULT 0, -- 1: 충돌 해결 필요 상태
-    tags TEXT,                    -- 콤마 분리형 또는 JSON 문자열
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+# 🚀 새 AI를 위한 프로젝트 인수인계 프롬프트
 
--- 사용자 관리 (PoC용)
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE,
-    email TEXT
-);
-6. 향후 확장 계획DB 마이그레이션: PoC 완료 후 SQLAlchemy 설정을 변경하여 PostgreSQL 또는 Oracle로 전환.검색 고도화: Elasticsearch에 Nori 한글 형태소 분석기를 적용하여 검색 정확도 향상.실시간 협업: 웹소켓을 도입하여 충돌 발생 전 다른 유저가 수정 중임을 알리는 '편집 중' 상태 표시 기능 추가.
+## 프로젝트 소개
+
+"지금부터 새로운 프로젝트 개발을 도와줘. 아래는 현재까지 완료된 백엔드 엔진의 구조와 상태야."
+
+---
+
+## 1. 프로젝트 개요
+
+**제목:** FastAPI + Git + Whoosh 기반 노트 관리 시스템 PoC 인수인계
+
+- **목적:** Git 기반의 마크다운 노트 관리 시스템 PoC (저장, 버전 관리, 검색 기능)
+- **핵심 스택:**
+    - Python 3.12
+    - FastAPI
+    - SQLAlchemy (SQLite)
+    - PyKomoran (한글 형태소 분석)
+    - Whoosh (전문 검색 엔진)
+    - GitPython
+
+---
+
+## 2. 현재 구현된 핵심 로직
+
+### 데이터 저장
+
+사용자가 노트를 저장하면 다음 프로세스가 진행됨:
+
+1. `.md` 파일로 로컬 저장
+2. Git Commit 수행
+3. SQLite에 메타데이터(제목, 마지막 해시, 수정자) 저장
+
+### 검색 엔진
+
+- Whoosh를 활용하며, `KoEnTokenizer`를 직접 구현해 한영 혼용 및 복합 명사 분석을 지원함
+
+### 동의어 처리
+
+- `CustomSynonymFilter`를 구현하여 동의어 검색 지원
+    - 예시: 'fastapi-백엔드', '휴대폰-스마트폰' 등
+
+### 동기화
+
+- 서버 기동 시 `lifespan` 이벤트를 통해 기존 `.md` 파일들을 Whoosh 인덱스에 자동 스캔/색인함
+
+---
+
+## 3. 주요 트러블슈팅 완료 사항 (중요)
+
+### Pickle 에러
+
+- **문제:** Whoosh의 스키마 직렬화 시 `PyKomoran` 객체나 `dict_keys`가 포함되어 발생하는 `TypeError`
+- **해결책:**
+    - `Komoran` 인스턴스를 전역 변수로 관리
+    - 동의어 사전을 순수 `dict/list`로 강제 변환
+
+### Path 객체
+
+- `repo_path`를 문자열이 아닌 `pathlib.Path` 객체로 유지하여 `.glob()` 등 파일 시스템 연산을 정상화함
+
+---
+
+## 4. 현재 파일 구조
+
+- `app/service/note_mng/note_mng_biz_service.py`: 비즈니스 로직 (Git, DB, 검색 연동)
+- `app/service/lang_analyzer/search_manager.py`: Whoosh 인덱스 관리 및 검색 로직
+- `app/service/lang_analyzer/synonym_filter.py`: 커스텀 동의어 필터
+
+---
+
+## 5. 다음 목표
+
+- 백엔드 엔진은 검증되었으므로, 이제 이 API들을 호출할 **프론트엔드(React + Tailwind CSS)** 개발로 넘어가려고 해
+- 주요 과제:
+    - 검색 결과 시각화(Highlighting)
+    - Git Diff 결과의 시각적 처리
+
+---
+
+## 요청사항
+
+"위 내용을 이해했다면, 앞으로의 개발 방향에 대해 요약해주고 프론트엔드 구성을 위한 첫 번째 단계부터 가이드해줘."

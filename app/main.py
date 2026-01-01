@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.middleware.cors import CORSMiddleware
 from watchfiles import awatch
 
 from app.controller.note_service_controller import note_service_controller
@@ -57,6 +58,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins="*",
+    allow_credentials=True,
+    allow_methods="*",
+    allow_headers="*",
+)
+
 app.include_router(note_service_controller)
 
 if __name__ == '__main__':
