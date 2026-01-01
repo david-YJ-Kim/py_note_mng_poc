@@ -31,15 +31,15 @@ git_service = GitService()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 서버 시작 시 실행 (startup)
+    await init_models()
+    print("✅ PoC용 SQLite 테이블 생성 완료")
 
-    print(f"start sync Index")
+    print(f"start sync files & Index")
     async with AsyncSessionLocal() as session:
         service = NoteService(session)
         # 별도 쓰레드나 동기 방식으로 실행
         service.sync_all_files_to_index()
-
-    await init_models()
-    print("✅ PoC용 SQLite 테이블 생성 완료")
+        await service.sync_db_with_file_system()
 
     yield
     # ========== Shutdown (서버 종료 시) ==========

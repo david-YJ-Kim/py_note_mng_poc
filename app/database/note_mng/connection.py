@@ -1,8 +1,8 @@
 # 1. 경로 설정 (프로젝트 루트의 data 폴더)
 import os
 from pathlib import Path
+from app.database.default_model_mixin import Base
 from typing import AsyncGenerator
-from app.database.base import Base
 from app.database.note_mng.model.note_model import NoteMetadata
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
@@ -21,7 +21,7 @@ SQLALCHEMY_DATABASE_URI = f"sqlite+aiosqlite:///{DB_PATH}"
 engine = create_async_engine(
     SQLALCHEMY_DATABASE_URI,
     connect_args={"check_same_thread": False},
-    echo=True, # PoC 단계에서 SQL 로그 확인용
+    echo=True,  # PoC 단계에서 SQL 로그 확인용
 )
 
 # 4. 세션 팩토리 생성
@@ -44,8 +44,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await sesion.close()
-
-
 
 
 # 7. 테이블 생성 함수

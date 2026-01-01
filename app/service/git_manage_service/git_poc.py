@@ -1,7 +1,9 @@
+import asyncio
 import logging
 import os
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 from git import Repo, Actor
 
@@ -22,6 +24,33 @@ class GitService:
             print("initialize git in repo")
         else:
             self.repo = Repo(self.repo_path)
+
+    async def get_last_commit_hash(self, file_path: str) -> Optional[str]:
+        """
+        특정 파일의 최신 커밋 해시(Abbreviated Hash)를 가져옵니다.
+        """
+        try:
+            # git log -1 --format=%H -- [file_path] 명령 실행
+            # %H: Full hash, %h: Abbreviated hash
+            process = await asyncio.create_subprocess_exec(
+                "git", "log", "-1", "--format=%H", "--", file_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.repo_path  # Git 명령을 실행할 작업 디렉토리
+            )
+
+            stdout, stderr = await process.communicate()
+
+            if process.returncode == 0 and stdout:
+                # 출력물에서 개행 문자 제거 후 반환
+                return stdout.decode().strip()
+
+            # 커밋 이력이 없는 신규 파일 등의 경우 None 반환
+            return None
+
+        except Exception as e:
+            print(f"Git log error for {file_path}: {e}")
+            return None
 
     def get_file_history(self, file_path: str):
         """ 특정 파일의 커밋 히스토리를 반환 """
