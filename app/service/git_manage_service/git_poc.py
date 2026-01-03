@@ -70,16 +70,43 @@ class GitService:
             print(f"Git history error: {e}")
             return []
 
-    def write_and_commit(self, file_name, content, author_name, message):
-        """ 신규 노트 생성 및 커밋 """
+    def write_and_commit(self, file_path, content, author_name, message):
+        """ 신규 노트 생성 및 커밋 (경로 중복 및 타입 에러 방지) """
 
-        full_path = os.path.join(self.repo_path, file_name)
+        # 0. 입력받은 file_path를 즉시 문자열로 변환 (WindowsPath 에러 방지)
+        file_path_str = str(file_path)
+        repo_path_str = str(self.repo_path)
+
+        # 1. 경로 정규화 (상대 경로 rel_path 추출)
+        if os.path.isabs(file_path_str):
+            # 절대 경로로 들어온 경우 repo_path 기준 상대 경로 추출
+            rel_path = os.path.relpath(file_path_str, repo_path_str)
+        else:
+            # 상대 경로로 들어온 경우 중복된 repo_path 문자열 제거
+            rel_path = file_path_str.replace(repo_path_str, "").lstrip("\\/")
+
+        # 2. 최종 물리 경로 (Full Path) - OS 표준 경로 사용
+        # rel_path를 다시 한번 str로 감싸서 확실하게 문자열임을 보장
+        rel_path_str = str(rel_path)
+        full_path = os.path.join(repo_path_str, rel_path_str)
+
+        # 폴더 생성
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
+        # 3. 파일 쓰기
         with open(full_path, "w", encoding="UTF-8") as f:
             f.write(content)
 
-        self.repo.index.add([file_name])
-        author = f"{author_name} <{author_name}@company.com>"
-        commit = self.repo.index.commit(message, author=Actor(author, None))
+        # 4. Git 인덱스 추가 (반드시 '/' 형태의 문자열 상대 경로여야 함)
+        # 여기서 str() 변환이 없으면 WindowsPath.replace() 에러가 발생함
+        formatted_rel_path = rel_path_str.replace("\\", "/")
+        self.repo.index.add([formatted_rel_path])
+
+        # 5. 커밋 수행
+        # 이메일 형식이 Actor 객체 생성 방식에 맞게 수정됨
+        author = Actor(author_name, f"{author_name}@company.com")
+        commit = self.repo.index.commit(message, author=author)
+
         return commit.hexsha
 
     def get_history_with_diff(self, file_name):

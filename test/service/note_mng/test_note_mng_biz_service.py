@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.main import git_service
 from app.service.note_mng.note_mng_biz_service import NoteService
-from app.exception.NoteConflictError import NoteConflictError
+from app.exception.NoteServiceException import NoteConflictError
 from app.spec.biz.NoteConflictDetail import NoteConflictDetail
 from app.database.note_mng.model.note_model import NoteMetadata
 

@@ -1,6 +1,6 @@
 from fastapi import HTTPException, APIRouter, Depends, status, BackgroundTasks
 
-from app.exception.NoteConflictError import NoteConflictError
+from app.exception.NoteServiceException import NoteConflictError, NoteNotFoundError, NoteFileNotFoundError
 from app.service.note_mng.note_mng_biz_service import NoteService, get_note_service
 from app.spec.endpoint.note_service_file_response_ivo import NoteSaveRequest
 from app.spec.endpoint.note_service_file_tree_response_ivo import NoteServiceFileTreeResponseIVO
@@ -58,6 +58,16 @@ async def get_folder_tree(service: NoteService = Depends(get_note_service)):
         )
 
 
+@router.get("/by-path")
+async def get_note_by_path(file_path: str, service: NoteService = Depends(get_note_service)):
+    try:
+        return await service.get_note_content_by_path(file_path)
+    except NoteNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except NoteFileNotFoundError as e:
+        raise HTTPException(status_code=500, detail="Database out of sync: File missing")
+
+
 @router.post("/save")
 async def save_note(request: NoteSaveRequest, background_tasks: BackgroundTasks,
                     service: NoteService = Depends(get_note_service)):
@@ -65,6 +75,7 @@ async def save_note(request: NoteSaveRequest, background_tasks: BackgroundTasks,
         # 핵심 로직 실행
         result = await service.save_or_update_note(
             title=request.title,
+            file_path=request.file_path,
             content=request.content,
             user_name=request.user_name,
             last_hash=request.last_hash,
@@ -103,6 +114,16 @@ async def get_note_history(title: str, service: NoteService = Depends(get_note_s
     if not detail:
         raise HTTPException(status_code=404, detail="Not Found")
     return detail
+
+
+@router.get("/{note_id}")
+async def get_note_by_id(note_id: str, service: NoteService = Depends(get_note_service)):
+    try:
+        return await service.get_note_content_by_id(note_id)
+    except NoteNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except NoteFileNotFoundError as e:
+        raise HTTPException(status_code=500, detail="File lost on server")
 
 
 note_service_controller = router

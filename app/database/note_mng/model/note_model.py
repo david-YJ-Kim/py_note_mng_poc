@@ -2,11 +2,11 @@ import uuid
 
 from sqlalchemy import Column, Integer, String, DateTime, func, UniqueConstraint
 
-from app.database.default_model_mixin import Base, ObjIdMixin, UseMixin, AuditMixin, TimestampMixin
+from app.database.default_model_mixin import Base, ObjIdMixin, UseMixin, AuditMixin, TimestampMixin, RecordNoteMixin
 from app.database.note_mng.constant.table_name import TableNames
 
 
-class NoteMetadata(Base, ObjIdMixin, UseMixin, AuditMixin, TimestampMixin):
+class NoteMetadata(Base, ObjIdMixin, UseMixin, AuditMixin, TimestampMixin, RecordNoteMixin):
     __tablename__ = TableNames.NOTE_META
 
     __table_args__ = (

@@ -1,16 +1,18 @@
 # note_mng_biz_service.py
 
 import asyncio
+from http.client import HTTPException
 from pathlib import Path
 from typing import List, Optional, Set, Dict
 
+import aiofiles
 from fastapi import Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.note_mng.connection import get_db
 from app.database.note_mng.model.note_model import NoteMetadata
-from app.exception.NoteConflictError import NoteConflictError
+from app.exception.NoteServiceException import NoteConflictError, NoteFileNotFoundError, NoteNotFoundError
 from app.service.git_manage_service.git_poc import GitService
 from app.service.lang_analyzer.search_manager import NoteSearchManager
 from app.spec.biz.NoteConflictDetail import NoteConflictDetail
@@ -25,6 +27,31 @@ class NoteService:
         self.search_manager = NoteSearchManager()
 
         self.repo_path = self.git_service.repo_path
+
+    async def get_note_content_by_path(self, file_path: str):
+        stmt = select(NoteMetadata).where(NoteMetadata.file_path == file_path,
+                                          NoteMetadata.use_stat_cd == UseStatEnum.USABLE)
+        result = await self.db.execute(stmt)
+        note_meta = result.scalars().first()
+
+        if not note_meta:
+            raise NoteNotFoundError(f"Path not found: {file_path}")
+        content = await self._read_file_content(note_meta.file_path)
+
+        return {"meta": note_meta, "content": content}
+
+    async def get_note_content_by_id(self, note_id: str):
+        """ID로 DB 메타 정보 조회 및 파일 내용 읽기"""
+        stmt = select(NoteMetadata).where(NoteMetadata.id == note_id, NoteMetadata.use_stat_cd == UseStatEnum.USABLE)
+        result = await self.db.execute(stmt)
+        note_meta = result.scalars().first()
+
+        if not note_meta:
+            raise NoteNotFoundError(f"ID {note_id} not found")
+
+        content = await self._read_file_content(note_meta.file_path)
+
+        return {"meta": note_meta, "content": content}
 
     async def sync_db_with_file_system(self):
         # --- [1] 파일 시스템 스캔 (커밋 해시 포함) ---
@@ -85,7 +112,8 @@ class NoteService:
                     use_stat_cd=UseStatEnum.USABLE,
                     last_modified_by="SYSTEM",  # 이전 에러 방지용
                     crt_user_id="SYSTEM",
-                    mdfy_user_id="SYSTEM"
+                    mdfy_user_id="SYSTEM",
+                    trns_cm="INIT_SYNC"
                 )
                 self.db.add(new_note)
                 new_count += 1
@@ -126,7 +154,8 @@ class NoteService:
 
         return items, total_count
 
-    async def save_or_update_note(self, title: str, content: str, user_name: str, last_hash: str = None):
+    async def save_or_update_note(self, title: str, file_path: str, content: str, user_name: str,
+                                  last_hash: str = None):
         """
         노트를 저장하거나 업데이트 하고, Git 커밋 해시를 DB에 기록합니다.
         :param title:
@@ -137,8 +166,11 @@ class NoteService:
         """
         file_name = f"{title}.md"
 
+        # 💡 입력받은 file_path를 즉시 문자열로 정규화
+        safe_file_path = str(file_path).replace("\\", "/")
+
         # 1. DB에서 기존 노트 조회
-        existing_note = await self._get_note_by_title_first(title)
+        existing_note = await self._get_note_by_path(safe_file_path)
         if existing_note:
             await self._check_conflict(existing_note, last_hash)
             action = "updated"
@@ -147,22 +179,27 @@ class NoteService:
 
         # 2. Git 서비스 호출 (파일 쓰기 및 커밋)
         new_hash = self.git_service.write_and_commit(
-            file_name, content, user_name, f"Saev/Update note: {title}"
+            safe_file_path, content, user_name, f"Saev/Update note: {title}"
         )
 
         # 3. DB 메타데이터 처리
         if existing_note:
+            existing_note.title = title
             existing_note.last_commit_hash = new_hash
             existing_note.mdfy_user_id = user_name
         else:
             new_node = NoteMetadata(
                 title=title,
-                file_path=file_name,
+                file_path=file_path,
                 last_commit_hash=new_hash,
+                last_modified_by=user_name,
                 crt_user_id=user_name,
                 mdfy_user_id=user_name,
             )
             self.db.add(new_node)
+
+        # 4. 트랜잭션 확정
+        await self.db.commit()
 
         return {
             "action": action,
@@ -275,6 +312,13 @@ class NoteService:
         item['diff'] = diff_content
         return item
 
+    async def _get_note_by_path(self, file_path: str) -> NoteMetadata:
+        """ 내부용: 제목으로 노트 메타데이터 조회 """
+        query = select(NoteMetadata).where(NoteMetadata.file_path == file_path,
+                                           NoteMetadata.use_stat_cd == UseStatEnum.USABLE)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+
     async def _get_note_by_title_first(self, title: str) -> NoteMetadata:
         """ 내부용: 제목으로 노트 메타데이터 조회 """
         query = select(NoteMetadata).where(NoteMetadata.title == title)
@@ -311,7 +355,7 @@ class NoteService:
 
             # 2. 필수 속성 계산
             rel_path = item.relative_to(self.git_service.repo_path)
-            item_id = str(rel_path).replace("\\", "/").replace(" ", "-").lower()
+            item_id = str(rel_path).replace("\\", "/").replace(" ", "-")
             display_path = str(rel_path).replace("\\", "/")
 
             if item.is_dir():
@@ -327,7 +371,7 @@ class NoteService:
                     path=display_path,
                     children=child_nodes,  # 여기서 재귀 결과가 들어갑니다.
                     order=index,
-                    expanded=None
+                    expanded=True
                 )
             else:
                 # 파일(Note)인 경우 children은 None 또는 빈 리스트
@@ -345,6 +389,16 @@ class NoteService:
             tree.append(data_ivo)
 
         return tree
+
+    async def _read_file_content(self, relative_path: str) -> str:
+        """ 실제 파일 시스템에서 내용을 읽는 공통 내부 메소드 """
+        full_path = self.repo_path / relative_path
+
+        if not full_path.exists():
+            raise NoteFileNotFoundError(f"File missing on disk: {relative_path}")
+
+        async with aiofiles.open(full_path, mode='r', encoding="utf-8") as f:
+            return await f.read()
 
 
 ## 의존성 주입을 위한 함수 만들기
